@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { mockDb } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 import { z } from 'zod'
 
-async function requireAuth(request: NextRequest) {
+async function requireAuth() {
   const session = await getServerSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -12,16 +12,30 @@ async function requireAuth(request: NextRequest) {
 }
 
 const UpdateSettingsSchema = z.object({
-  votePrice: z.number().positive().optional(),
-  platformName: z.string().optional(),
-  description: z.string().optional(),
-  isActive: z.boolean().optional(),
-  maxVotesPerUser: z.number().positive().optional(),
+  voteCost: z.number().positive().optional(),
+  currency: z.string().min(1).optional(),
+  votingActive: z.boolean().optional(),
 })
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const settings = mockDb.getSettings()
+    const settings = await prisma.settings.findUnique({
+      where: { id: 'singleton' },
+    })
+    
+    if (!settings) {
+      // Fallback if not initialized (though seed should handle this)
+      const defaultSettings = await prisma.settings.create({
+        data: {
+          id: 'singleton',
+          voteCost: 100,
+          currency: 'NGN',
+          votingActive: true,
+        },
+      })
+      return NextResponse.json(defaultSettings)
+    }
+
     return NextResponse.json(settings)
   } catch (error) {
     console.error('Get settings error:', error)
@@ -33,14 +47,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const authError = await requireAuth(request)
+  const authError = await requireAuth()
   if (authError) return authError
 
   try {
     const body = await request.json()
     const updates = UpdateSettingsSchema.parse(body)
 
-    const settings = mockDb.updateSettings(updates)
+    const settings = await prisma.settings.upsert({
+      where: { id: 'singleton' },
+      update: updates,
+      create: {
+        id: 'singleton',
+        voteCost: updates.voteCost ?? 100,
+        currency: updates.currency ?? 'NGN',
+        votingActive: updates.votingActive ?? true,
+      },
+    })
 
     return NextResponse.json(settings)
   } catch (error) {

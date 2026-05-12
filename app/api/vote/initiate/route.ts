@@ -1,64 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { mockDb } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 import { z } from 'zod'
 
 const VoteRequestSchema = z.object({
   contestantId: z.string().min(1),
-  voterEmail: z.string().email(),
-  voterName: z.string().optional(),
-  voterPhone: z.string().optional(),
+  voterEmail: z.string().email().optional().nullable(),
+  voterName: z.string().optional().nullable(),
+  packageId: z.string().min(1),
+  amount: z.number().positive(),
+  voteCount: z.number().int().positive(),
 })
-
-// Mock rate limiting (in production, use Upstash Redis)
-const rateLimitMap = new Map<string, number[]>()
-
-function isRateLimited(email: string): boolean {
-  const now = Date.now()
-  const timestamps = rateLimitMap.get(email) || []
-  const recentRequests = timestamps.filter((t) => now - t < 60000) // 1 minute window
-  
-  if (recentRequests.length >= 5) {
-    return true
-  }
-  
-  rateLimitMap.set(email, [...recentRequests, now])
-  return false
-}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { contestantId, voterEmail, voterName, voterPhone } = VoteRequestSchema.parse(body)
+    const { contestantId, voterEmail, voterName, amount, voteCount } = VoteRequestSchema.parse(body)
 
-    // Check rate limit
-    if (isRateLimited(voterEmail)) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    // 1. Check voting is active
+    const settings = await prisma.settings.findUnique({
+      where: { id: 'singleton' },
+    })
 
-    // Check voting is active
-    const settings = mockDb.getSettings()
-
-    if (!settings?.isActive) {
+    if (!settings?.votingActive) {
       return NextResponse.json(
         { error: 'Voting is not currently active.' },
         { status: 400 }
       )
     }
 
-    // Check max votes per user
-    const userVoteCount = mockDb.getVoteCount(voterEmail)
-    if (userVoteCount >= settings.maxVotesPerUser) {
-      return NextResponse.json(
-        { error: `You have reached the maximum of ${settings.maxVotesPerUser} votes.` },
-        { status: 400 }
-      )
-    }
-
-    // Verify contestant exists
-    const contestant = mockDb.getContestant(contestantId)
+    // 2. Verify contestant exists
+    const contestant = await prisma.contestant.findUnique({
+      where: { id: contestantId },
+    })
 
     if (!contestant) {
       return NextResponse.json(
@@ -67,26 +40,83 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create pending transaction
+    // 3. Handle optional email
+    const finalEmail = voterEmail || `anon_${Date.now()}@divinemercy.voting`
+
+    // 4. Create pending transaction with the specific vote count
     const reference = 'TXN' + Date.now() + Math.random().toString(36).substr(2, 9)
-    const transaction = mockDb.createTransaction(
-      reference,
-      settings.votePrice,
-      contestantId,
-      voterEmail,
-      voterPhone || ''
-    )
-
-    // In production, initialize Flutterwave payment
-    // For demo, return mock payment data
-    const mockPaymentUrl = `/vote/payment?reference=${reference}`
-
-    return NextResponse.json({
-      transactionId: transaction.id,
-      reference: transaction.reference,
-      amount: settings.votePrice,
-      paymentUrl: mockPaymentUrl,
+    const transaction = await prisma.transaction.create({
+      data: {
+        contestantId,
+        voterEmail: finalEmail,
+        voterName: voterName || null,
+        amount,
+        voteCount, // Store the number of votes purchased
+        currency: settings.currency,
+        status: 'pending',
+        flutterRef: reference,
+      },
     })
+
+    // 5. Initiate Flutterwave Payment
+    const rawSecretKey = process.env.FLUTTERWAVE_SECRET_KEY
+    const secretKey = rawSecretKey?.trim().replace(/^["']|["']$/g, '')
+
+    if (!secretKey || secretKey.includes('your-secret')) {
+      return NextResponse.json(
+        { error: 'Payment integration is not configured.' },
+        { status: 500 }
+      )
+    }
+
+    try {
+      const response = await fetch('https://api.flutterwave.com/v3/payments', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tx_ref: reference,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          redirect_url: `${process.env.NEXTAUTH_URL}/vote/verify`,
+          customer: {
+            email: transaction.voterEmail,
+            name: transaction.voterName || 'Anonymous Voter',
+          },
+          customizations: {
+            title: 'DivineMercy Voting',
+            description: `Voting for ${contestant.name} (${transaction.voteCount} votes)`,
+            logo: 'https://divinemercy.voting/logo.png',
+          },
+        }),
+      })
+
+      const fwData = await response.json()
+      if (fwData.status !== 'success') {
+        console.error('Flutterwave initiation error:', fwData)
+        return NextResponse.json(
+          { error: 'Failed to initiate payment with Flutterwave.' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        transactionId: transaction.id,
+        reference: transaction.flutterRef,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        voteCount: transaction.voteCount,
+        paymentUrl: fwData.data.link,
+      })
+    } catch (err) {
+      console.error('Fetch error calling Flutterwave:', err)
+      return NextResponse.json(
+        { error: 'Network error connecting to payment gateway.' },
+        { status: 500 }
+      )
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import useSWR from 'swr'
 
 export interface Contestant {
   id: string
@@ -9,63 +10,53 @@ export interface Contestant {
   updatedAt: string
 }
 
-export function useLeaderboard() {
-  const [contestants, setContestants] = useState<Contestant[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+const fetcher = (url: string) => fetch(url).then(res => res.json())
+
+export function useLeaderboard(initialData?: Contestant[]) {
+  // Use SWR for periodic updates instead of expensive long-lived SSE
+  const { data, error: swrError } = useSWR('/api/admin/contestants', fetcher, {
+    refreshInterval: 5000, // Poll every 5 seconds
+    fallbackData: initialData,
+    revalidateOnFocus: true,
+  })
+
+  const [contestants, setContestants] = useState<Contestant[]>(data || initialData || [])
+  const [isLoading, setIsLoading] = useState(!data && !initialData)
   const [error, setError] = useState<string | null>(null)
 
+  // Sync state when SWR data changes, but preserve images if they aren't in the update
   useEffect(() => {
-    // Fetch initial data
-    const fetchInitial = async () => {
-      try {
-        const res = await fetch('/api/admin/contestants')
-        if (!res.ok) throw new Error('Failed to fetch')
-        const data = await res.json()
-        setContestants(Array.isArray(data) ? data : [])
-        setError(null)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error')
-        setContestants([])
-      } finally {
-        setIsLoading(false)
-      }
+    if (data && Array.isArray(data)) {
+      setContestants(prev => {
+        const updateMap = new Map(data.map((c: any) => [c.id, c]))
+        
+        const updated = prev.map(c => {
+          const newData = updateMap.get(c.id)
+          if (!newData) return c
+          return {
+            ...c,
+            ...newData,
+            // Keep the old image if the new data doesn't have it (for lazy loading optimization)
+            image: newData.image || c.image 
+          }
+        })
+
+        // Add any new contestants that weren't in the list
+        const existingIds = new Set(prev.map(c => c.id))
+        const newContestants = data.filter((c: any) => !existingIds.has(c.id))
+        
+        const finalList = [...updated, ...newContestants]
+        return finalList.sort((a, b) => b.voteCount - a.voteCount)
+      })
+      setIsLoading(false)
     }
+  }, [data])
 
-    fetchInitial()
-
-    // Connect to SSE for updates
-    const eventSource = new EventSource('/api/leaderboard/stream')
-
-    eventSource.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-
-        if (message.type === 'initial') {
-          setContestants(message.contestants || [])
-        } else if (message.type === 'update') {
-          // Refetch on update
-          fetchInitial()
-        }
-      } catch (err) {
-        console.error('Error parsing SSE message:', err)
-      }
+  useEffect(() => {
+    if (swrError) {
+      setError('Failed to refresh leaderboard')
     }
-
-    eventSource.onerror = () => {
-      eventSource.close()
-      setError('Connection lost. Retrying...')
-      // Reconnect after delay
-      setTimeout(() => {
-        const newSource = new EventSource('/api/leaderboard/stream')
-        newSource.onmessage = eventSource.onmessage
-        newSource.onerror = eventSource.onerror
-      }, 3000)
-    }
-
-    return () => {
-      eventSource.close()
-    }
-  }, [])
+  }, [swrError])
 
   return { contestants, isLoading, error }
 }

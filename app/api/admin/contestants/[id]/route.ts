@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { mockDb } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 import { z } from 'zod'
 
-async function requireAuth(request: NextRequest) {
+async function requireAuth() {
   const session = await getServerSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -13,17 +13,19 @@ async function requireAuth(request: NextRequest) {
 
 const UpdateContestantSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  description: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  image: z.string().optional().nullable().or(z.literal('')),
   voteCount: z.number().int().min(0).optional(),
 })
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contestant = mockDb.getContestant(params.id)
+    const { id } = await params
+    const contestant = await prisma.contestant.findUnique({
+      where: { id },
+    })
 
     if (!contestant) {
       return NextResponse.json(
@@ -44,23 +46,20 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await requireAuth(request)
+  const authError = await requireAuth()
   if (authError) return authError
 
   try {
+    const { id } = await params
     const body = await request.json()
     const updates = UpdateContestantSchema.parse(body)
 
-    const contestant = mockDb.updateContestant(params.id, updates)
-
-    if (!contestant) {
-      return NextResponse.json(
-        { error: 'Contestant not found' },
-        { status: 404 }
-      )
-    }
+    const contestant = await prisma.contestant.update({
+      where: { id },
+      data: updates,
+    })
 
     return NextResponse.json(contestant)
   } catch (error) {
@@ -81,20 +80,16 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await requireAuth(request)
+  const authError = await requireAuth()
   if (authError) return authError
 
   try {
-    const success = mockDb.deleteContestant(params.id)
-
-    if (!success) {
-      return NextResponse.json(
-        { error: 'Contestant not found' },
-        { status: 404 }
-      )
-    }
+    const { id } = await params
+    await prisma.contestant.delete({
+      where: { id },
+    })
 
     return NextResponse.json({ message: 'Contestant deleted successfully' })
   } catch (error) {

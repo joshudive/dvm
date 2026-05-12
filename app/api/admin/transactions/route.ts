@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { mockDb } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 
-async function requireAuth(request: NextRequest) {
+async function requireAuth() {
   const session = await getServerSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -11,7 +11,7 @@ async function requireAuth(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const authError = await requireAuth(request)
+  const authError = await requireAuth()
   if (authError) return authError
 
   try {
@@ -19,11 +19,25 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50')
     const offset = parseInt(request.nextUrl.searchParams.get('offset') || '0')
 
-    const allTransactions = mockDb.getTransactions()
-    const filtered = status ? allTransactions.filter(t => t.status === status) : allTransactions
-    
-    const transactions = filtered.slice(offset, offset + limit)
-    const total = filtered.length
+    const where = status ? { status } : {}
+
+    const [transactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where,
+        take: limit,
+        skip: offset,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          contestant: {
+            select: {
+              name: true,
+              image: true,
+            }
+          }
+        }
+      }),
+      prisma.transaction.count({ where }),
+    ])
 
     return NextResponse.json({
       transactions,

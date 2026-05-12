@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -18,25 +15,32 @@ model Contestant {
   updatedAt DateTime @updatedAt
 
   @@index([voteCount])
+  @@map("contestant")
+
+  transactions Transaction[]
 }
 
 model Transaction {
-  id            String   @id @default(cuid())
-  contestantId  String
-  voterEmail    String
-  voterName     String?
-  amount        Float
-  currency      String   @default("NGN")
-  flutterRef    String?  @unique
-  status        String   @default("pending") // pending, completed, failed
-  voteApplied   Boolean  @default(false)
-  metadata      Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  contestantId String
+  voterEmail   String
+  voterName    String?
+  amount       Float
+  voteCount    Int      @default(1)
+  currency     String   @default("NGN")
+  flutterRef   String?  @unique
+  status       String   @default("pending")
+  voteApplied  Boolean  @default(false)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([flutterRef])
   @@index([status])
   @@index([contestantId])
+  @@map("transaction")
+
+  contestant Contestant @relation(fields: [contestantId], references: [id])
 }
 
 model Settings {
@@ -45,14 +49,16 @@ model Settings {
   currency     String  @default("NGN")
   votingActive Boolean @default(true)
 
-  @@unique([id])
+  @@map("settings")
 }
 
 model AdminUser {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  name          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admin_user")
 }

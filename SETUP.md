@@ -77,8 +77,6 @@ Create the default settings and admin user:
 
 ```bash
 pnpm prisma db seed
-# Or run the init script
-npx ts-node scripts/init-db.ts
 ```
 
 Default Admin Credentials:

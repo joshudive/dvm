@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { mockDb } from '@/lib/mock-db'
+import { prisma } from '@/lib/db'
 import { z } from 'zod'
 
 // Middleware to check auth
-async function requireAuth(request: NextRequest) {
+async function requireAuth() {
   const session = await getServerSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,14 +14,29 @@ async function requireAuth(request: NextRequest) {
 
 const CreateContestantSchema = z.object({
   name: z.string().min(1).max(100),
-  description: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  image: z.string().optional().nullable().or(z.literal('')),
 })
 
 export async function GET(request: NextRequest) {
   try {
-    const contestants = mockDb.getContestants()
-    return NextResponse.json(contestants)
+    const { searchParams } = new URL(request.url)
+    const excludeImages = searchParams.get('excludeImages') === 'true'
+
+    const contestants = await prisma.contestant.findMany({
+      orderBy: { voteCount: 'desc' },
+      select: excludeImages ? {
+        id: true,
+        name: true,
+        voteCount: true,
+        createdAt: true,
+        updatedAt: true,
+      } : undefined
+    })
+    return NextResponse.json(contestants, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=20, stale-while-revalidate=10'
+      }
+    })
   } catch (error) {
     console.error('Get contestants error:', error)
     return NextResponse.json(
@@ -32,14 +47,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = await requireAuth(request)
+  const authError = await requireAuth()
   if (authError) return authError
 
   try {
     const body = await request.json()
-    const { name, description, imageUrl } = CreateContestantSchema.parse(body)
+    const { name, image } = CreateContestantSchema.parse(body)
 
-    const contestant = mockDb.createContestant(name, description || '', imageUrl)
+    const contestant = await prisma.contestant.create({
+      data: {
+        name,
+        image: image || null,
+        voteCount: 0,
+      },
+    })
 
     return NextResponse.json(contestant, { status: 201 })
   } catch (error) {

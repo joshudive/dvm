@@ -1,0 +1,1 @@
+ALTER TABLE "transaction" ADD COLUMN "voteCount" INTEGER DEFAULT 1;

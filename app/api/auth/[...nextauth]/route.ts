@@ -2,13 +2,7 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { verifyPassword } from '@/lib/hash'
 
-// Mock admin user for demo
-const ADMIN_USER = {
-  id: 'admin-1',
-  email: 'admin@example.com',
-  name: 'Administrator',
-  passwordHash: '$2b$10$R0w1IeJoApZFhIMg5ZUcBe31Tr6zik2JKhxpd.n3oHnOALIqsjtJ2', // 'admin123' hashed
-}
+import { prisma } from '@/lib/db'
 
 const handler = NextAuth({
   pages: {
@@ -26,14 +20,17 @@ const handler = NextAuth({
           return null
         }
 
-        // Check against mock admin user
-        if (credentials.email !== ADMIN_USER.email) {
+        const admin = await prisma.adminUser.findUnique({
+          where: { email: credentials.email },
+        })
+
+        if (!admin) {
           return null
         }
 
         const isPasswordValid = await verifyPassword(
           credentials.password,
-          ADMIN_USER.passwordHash
+          admin.passwordHash
         )
 
         if (!isPasswordValid) {
@@ -41,9 +38,9 @@ const handler = NextAuth({
         }
 
         return {
-          id: ADMIN_USER.id,
-          email: ADMIN_USER.email,
-          name: ADMIN_USER.name,
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
         }
       },
     }),
