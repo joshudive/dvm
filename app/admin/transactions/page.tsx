@@ -6,17 +6,17 @@ import { useSession } from 'next-auth/react'
 import { AdminHeader } from '@/components/AdminHeader'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Calendar, 
-  User, 
-  Vote, 
-  CreditCard, 
-  CheckCircle2, 
-  Clock, 
-  XCircle, 
+import {
+  Search,
+  Filter,
+  Download,
+  Calendar,
+  User,
+  Vote,
+  CreditCard,
+  CheckCircle2,
+  Clock,
+  XCircle,
   ArrowUpDown,
   ExternalLink,
   ChevronLeft,
@@ -56,6 +56,7 @@ export default function AdminTransactions() {
   const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [isExporting, setIsExporting] = useState(false)
   const limit = 20
 
   useEffect(() => {
@@ -67,6 +68,54 @@ export default function AdminTransactions() {
   if (status === 'unauthenticated') {
     router.push('/admin/login')
     return null
+  }
+
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true)
+      const params = new URLSearchParams()
+      if (filter !== 'all') params.append('status', filter)
+      params.append('limit', Math.max(total, 1).toString())
+      params.append('offset', '0')
+
+      const res = await fetch(`/api/admin/transactions?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch data for export')
+      
+      const data = await res.json()
+      const exportTransactions: Transaction[] = data.transactions
+      
+      const headers = ['ID', 'Contestant Name', 'Voter Email', 'Voter Name', 'Amount', 'Currency', 'Votes', 'Status', 'Reference', 'Date']
+      const csvContent = [
+        headers.join(','),
+        ...exportTransactions.map(tx => [
+          tx.id,
+          `"${tx.contestant?.name?.replace(/"/g, '""') || ''}"`,
+          `"${tx.voterEmail?.replace(/"/g, '""') || ''}"`,
+          `"${(tx.voterName || '').replace(/"/g, '""')}"`,
+          tx.amount,
+          tx.currency,
+          tx.voteCount,
+          tx.status,
+          tx.flutterRef || '',
+          `"${new Date(tx.createdAt).toISOString()}"`
+        ].join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `transactions_${filter}_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error('Export error:', err)
+      setError('Failed to export transactions')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const fetchTransactions = async () => {
@@ -91,33 +140,33 @@ export default function AdminTransactions() {
     }
   }
 
-  const filteredTransactions = transactions.filter(t => 
+  const filteredTransactions = transactions.filter(t =>
     t.voterEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.contestant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.flutterRef?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const stats = [
-    { 
-      label: 'Total Revenue', 
-      value: `${transactions[0]?.currency || 'NGN'} ${globalStats.revenue.toLocaleString()}`, 
-      icon: Receipt, 
-      color: 'text-green-600', 
-      bg: 'bg-green-50' 
+    {
+      label: 'Total Revenue',
+      value: `${transactions[0]?.currency || 'NGN'} ${globalStats.revenue.toLocaleString()}`,
+      icon: Receipt,
+      color: 'text-green-600',
+      bg: 'bg-green-50'
     },
-    { 
-      label: 'Votes Processed', 
-      value: globalStats.votes.toLocaleString(), 
-      icon: Vote, 
-      color: 'text-primary', 
-      bg: 'bg-primary/5' 
+    {
+      label: 'Votes Processed',
+      value: globalStats.votes.toLocaleString(),
+      icon: Vote,
+      color: 'text-primary',
+      bg: 'bg-primary/5'
     },
-    { 
-      label: 'Success Rate', 
-      value: total > 0 ? `${Math.round((globalStats.successCount / (total || 1)) * 100)}%` : '0%', 
-      icon: TrendingUp, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
+    {
+      label: 'Success Rate',
+      value: total > 0 ? `${Math.round((globalStats.successCount / (total || 1)) * 100)}%` : '0%',
+      icon: TrendingUp,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50'
     },
   ]
 
@@ -165,9 +214,14 @@ export default function AdminTransactions() {
             <p className="text-muted-foreground font-medium">Audit and monitor all payment activities across the platform</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="rounded-xl h-11 px-4 gap-2 font-bold border-muted">
+            <Button 
+              variant="outline" 
+              className="rounded-xl h-11 px-4 gap-2 font-bold border-muted"
+              onClick={handleExportCSV}
+              disabled={isExporting || total === 0}
+            >
               <Download className="w-4 h-4" />
-              Export CSV
+              {isExporting ? 'Exporting...' : 'Export CSV'}
             </Button>
             <Button className="rounded-xl h-11 px-6 font-bold shadow-lg shadow-primary/20 gap-2" onClick={fetchTransactions}>
               <ArrowUpDown className="w-4 h-4" />
@@ -200,11 +254,10 @@ export default function AdminTransactions() {
               <button
                 key={s}
                 onClick={() => { setFilter(s); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-bold capitalize transition-all border ${
-                  filter === s 
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' 
-                    : 'bg-card text-muted-foreground border-muted hover:bg-muted/50'
-                }`}
+                className={`px-4 py-2 rounded-xl text-sm font-bold capitalize transition-all border ${filter === s
+                  ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                  : 'bg-card text-muted-foreground border-muted hover:bg-muted/50'
+                  }`}
               >
                 {s}
               </button>
@@ -212,8 +265,8 @@ export default function AdminTransactions() {
           </div>
           <div className="relative w-full md:w-80 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <Input 
-              placeholder="Search by email or contestant..." 
+            <Input
+              placeholder="Search by email or contestant..."
               className="pl-10 h-11 rounded-xl bg-muted/30 border-muted focus:bg-card transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -262,6 +315,8 @@ export default function AdminTransactions() {
                           <div>
                             <p className="text-sm font-bold text-foreground leading-none mb-1">{tx.voterEmail}</p>
                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">REF: {tx.flutterRef || tx.id.slice(-8)}</p>
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter mt-1">{tx.voterName}</p>
+
                           </div>
                         </div>
                       </td>
@@ -315,19 +370,19 @@ export default function AdminTransactions() {
                 Showing <span className="text-foreground">{((page - 1) * limit) + 1}</span> to <span className="text-foreground">{Math.min(page * limit, total)}</span> of <span className="text-foreground">{total}</span> records
               </p>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={page === 1} 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
                   onClick={() => setPage(p => p - 1)}
                   className="rounded-lg h-9 w-9 p-0"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={page * limit >= total} 
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page * limit >= total}
                   onClick={() => setPage(p => p + 1)}
                   className="rounded-lg h-9 w-9 p-0"
                 >
