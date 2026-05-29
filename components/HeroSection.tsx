@@ -1,8 +1,7 @@
 'use client'
 
-import { Trophy, ShieldCheck, Sparkles, UserCircle } from 'lucide-react'
+import { ShieldCheck, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import Link from 'next/link'
 
 interface HeroSectionProps {
   voteCost: number
@@ -12,39 +11,6 @@ interface HeroSectionProps {
 export function HeroSection({ voteCost, currency }: HeroSectionProps) {
   return (
     <>
-      {/* Header */}
-      <header className="sticky top-0 z-50 glass border-b">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-              <Trophy className="text-white w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground">
-                Divine<span className="text-primary">Mercy</span>
-              </h1>
-              <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground -mt-1">
-                Voting Platform
-              </p>
-            </div>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="#leaderboard" className="text-sm font-medium hover:text-primary transition-colors">Leaderboard</Link>
-            <Link href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">How it Works</Link>
-          </nav>
-
-          <div className="flex items-center gap-4">
-            <Link href="/admin/login">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <UserCircle className="w-4 h-4" />
-                Admin Portal
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Section */}
       <section className="relative pt-20 pb-16 sm:pt-32 sm:pb-24 overflow-hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">

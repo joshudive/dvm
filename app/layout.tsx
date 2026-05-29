@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import SessionProvider from '@/components/SessionProvider'
+import { Header } from '@/components/Header'
+import { Footer } from '@/components/Footer'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -37,9 +39,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-white">
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased flex flex-col min-h-screen">
         <SessionProvider>
+          <Header />
           {children}
+          <Footer />
         </SessionProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

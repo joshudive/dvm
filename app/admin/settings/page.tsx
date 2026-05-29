@@ -7,7 +7,8 @@ import { AdminHeader } from '@/components/AdminHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { Settings as SettingsIcon, Coins, Globe, Power, Save, RefreshCcw, History, ArrowRight, User } from 'lucide-react'
+import { Settings as SettingsIcon, Coins, Globe, Power, Save, RefreshCcw, History, ArrowRight, User, Trash2, Clock } from 'lucide-react'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import { AdminProfile } from '@/components/AdminProfile'
 
@@ -26,6 +27,7 @@ export default function AdminSettings() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [isCleaning, setIsCleaning] = useState(false)
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -80,6 +82,22 @@ export default function AdminSettings() {
       setError(err instanceof Error ? err.message : 'Failed to save settings')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleCleanup = async () => {
+    if (!confirm('Are you sure you want to delete all pending transactions older than 24 hours?')) return
+
+    try {
+      setIsCleaning(true)
+      const res = await fetch('/api/admin/transactions/cleanup', { method: 'POST' })
+      if (!res.ok) throw new Error('Cleanup failed')
+      const data = await res.json()
+      toast.success(data.message)
+    } catch (err) {
+      toast.error('Failed to perform cleanup')
+    } finally {
+      setIsCleaning(false)
     }
   }
 
@@ -214,6 +232,39 @@ export default function AdminSettings() {
                 </Button>
               </div>
             </form>
+          </Card>
+
+          <div className="mt-8 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center border border-primary/10">
+                <RefreshCcw className="w-6 h-6 text-primary" />
+              </div>
+              <h2 className="text-3xl font-black tracking-tight text-foreground">Maintenance</h2>
+            </div>
+            <p className="text-muted-foreground font-medium">Clean up and optimize your database</p>
+          </div>
+
+          <Card className="rounded-[2.5rem] p-8 border-none ring-1 ring-black/5 dark:ring-white/5 shadow-xl bg-card">
+            <div className="flex items-center justify-between gap-6">
+              <div className="flex items-center gap-6">
+                <div className="w-14 h-14 rounded-2xl bg-destructive/5 flex items-center justify-center">
+                  <Clock className="w-7 h-7 text-destructive" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg">Cleanup Pending Transactions</h4>
+                  <p className="text-sm text-muted-foreground">Remove abandoned payment attempts older than 24h</p>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleCleanup}
+                disabled={isCleaning}
+                className="rounded-xl h-12 px-6 font-bold gap-2 border-muted hover:bg-destructive/5 hover:text-destructive transition-all"
+              >
+                {isCleaning ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Run Cleanup
+              </Button>
+            </div>
           </Card>
 
           <div className="mt-8 mb-4">

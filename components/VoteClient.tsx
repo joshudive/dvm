@@ -18,9 +18,7 @@ import {
   Zap, 
   Award, 
   Flame, 
-  ChevronRight, 
-  ChevronLeft,
-  Trophy
+  ChevronRight
 } from 'lucide-react'
 
 interface Contestant {
@@ -110,27 +108,6 @@ export function VoteClient({ initialContestant }: { initialContestant: Contestan
 
   return (
     <main className="min-h-screen bg-background font-sans selection:bg-primary/10">
-      <header className="sticky top-0 z-50 glass border-b">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center border border-primary/10 group-hover:bg-primary group-hover:text-white transition-all">
-              <ChevronLeft className="w-5 h-5" />
-            </div>
-            <span className="font-bold text-sm hidden sm:inline">Back to Leaderboard</span>
-          </Link>
-          
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-              <Trophy className="text-white w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Divine<span className="text-primary">Mercy</span>
-            </h1>
-          </div>
-          <div className="w-10 h-10 sm:w-32" />
-        </div>
-      </header>
-
       <div className="max-w-4xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           <div className="lg:col-span-4">

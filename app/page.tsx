@@ -1,8 +1,6 @@
 import { prisma } from '@/lib/db'
 import { Leaderboard } from '@/components/Leaderboard'
 import { HeroSection } from '@/components/HeroSection'
-import Link from 'next/link'
-import { Trophy } from 'lucide-react'
 
 export const revalidate = 10
 
@@ -59,45 +57,6 @@ export default async function Home() {
 
         <Leaderboard initialContestants={contestants} />
       </section>
-
-      {/* Footer */}
-      <footer className="bg-white/50 dark:bg-black/20 border-t py-12 mt-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b pb-12 mb-12">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Trophy className="text-white w-4 h-4" />
-              </div>
-              <span className="font-bold text-xl tracking-tight">DivineMercy</span>
-            </div>
-
-            <div className="flex gap-12">
-              <div className="space-y-4">
-                <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Platform</h4>
-                <ul className="space-y-2 text-sm">
-                  <li><Link href="#leaderboard" className="hover:text-primary transition-colors">Leaderboard</Link></li>
-                  <li><Link href="#how-it-works" className="hover:text-primary transition-colors">Terms of Voting</Link></li>
-                </ul>
-              </div>
-              <div className="space-y-4">
-                <h4 className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Admin</h4>
-                <ul className="space-y-2 text-sm">
-                  <li><Link href="/admin/login" className="hover:text-primary transition-colors">Login</Link></li>
-                  <li><Link href="/admin/dashboard" className="hover:text-primary transition-colors">Dashboard</Link></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground font-medium">
-            <p>© 2024 DivineMercy Voting Platform. All rights reserved.</p>
-            <div className="flex gap-6">
-              <Link href="#" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link href="#" className="hover:text-foreground transition-colors">Contact Support</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
     </main>
   )
 }
