@@ -35,7 +35,7 @@ export function Header() {
 
   const navLinks = [
     { name: 'Home', href: '/' },
-    { name: 'Leaderboard', href: '/#leaderboard' },
+    // { name: 'Leaderboard', href: '/#leaderboard' },
     { name: 'Contact Us', href: '/contact' },
   ]
 
